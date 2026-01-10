@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, Save, Percent, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Save, Percent, AlertCircle, Settings as SettingsIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -85,7 +85,7 @@ export default function Settings() {
             <ModelEditor modelId={selectedModelId} />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-              <Settings className="w-12 h-12 mb-4 opacity-20" />
+              <SettingsIcon className="w-12 h-12 mb-4 opacity-20" />
               <p>Selecione um modelo para editar ou crie um novo.</p>
             </div>
           )}

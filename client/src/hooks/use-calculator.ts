@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type CalculateInput, type NoteResponse } from "@shared/routes"; // NoteResponse is wrong here, fixing usage
+import { api } from "@shared/routes";
+import { type CalculateInput } from "@shared/schema";
 
 export function useCalculate() {
   return useMutation({
@@ -10,7 +11,8 @@ export function useCalculate() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Calculation failed");
-      return api.calculator.calculate.responses[200].parse(await res.json());
+      const json = await res.json();
+      return api.calculator.calculate.responses[200].parse(json);
     },
   });
 }
@@ -24,7 +26,8 @@ export function useSaveSimulation() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to save simulation");
-      return api.calculator.saveSimulation.responses[201].parse(await res.json());
+      const json = await res.json();
+      return api.calculator.saveSimulation.responses[201].parse(json);
     },
   });
 }
