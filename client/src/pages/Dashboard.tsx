@@ -42,22 +42,24 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-slate-200 shadow-sm group hover:border-emerald-500/50 transition-colors cursor-pointer" onClick={() => window.location.href='/simulator'}>
-           <CardHeader className="pb-2">
-            <CardDescription>Ação Rápida</CardDescription>
-            <CardTitle className="text-2xl font-bold font-display text-emerald-600 group-hover:text-emerald-500 transition-colors">Nova Simulação</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-slate-500">
-              Calcular antecipação de título
-            </div>
-            <div className="mt-4 flex justify-end">
-               <div className="bg-emerald-50 text-emerald-600 p-2 rounded-full group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                 <ArrowRight className="w-5 h-5" />
-               </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Link href="/simulator">
+          <Card className="bg-white border-slate-200 shadow-sm group hover:border-emerald-500/50 transition-colors cursor-pointer">
+             <CardHeader className="pb-2">
+              <CardDescription>Ação Rápida</CardDescription>
+              <CardTitle className="text-2xl font-bold font-display text-emerald-600 group-hover:text-emerald-500 transition-colors">Nova Simulação</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-slate-500">
+                Calcular antecipação de título
+              </div>
+              <div className="mt-4 flex justify-end">
+                 <div className="bg-emerald-50 text-emerald-600 p-2 rounded-full group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                   <ArrowRight className="w-5 h-5" />
+                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

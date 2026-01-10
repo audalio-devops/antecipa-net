@@ -8,7 +8,8 @@ export function useModelConfigs() {
     queryFn: async () => {
       const res = await fetch(api.modelConfigs.list.path);
       if (!res.ok) throw new Error("Failed to fetch model configurations");
-      return api.modelConfigs.list.responses[200].parse(await res.json());
+      const data = await res.json();
+      return api.modelConfigs.list.responses[200].parse(data);
     },
   });
 }
@@ -22,7 +23,8 @@ export function useModelConfig(id: number | null) {
       const url = buildUrl(api.modelConfigs.get.path, { id });
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch model details");
-      return api.modelConfigs.get.responses[200].parse(await res.json());
+      const data = await res.json();
+      return api.modelConfigs.get.responses[200].parse(data);
     },
   });
 }
@@ -40,7 +42,8 @@ export function useCreateModelConfig() {
         const error = await res.json();
         throw new Error(error.message || "Failed to create model config");
       }
-      return api.modelConfigs.create.responses[201].parse(await res.json());
+      const json = await res.json();
+      return api.modelConfigs.create.responses[201].parse(json);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.modelConfigs.list.path] });
@@ -59,7 +62,8 @@ export function useUpdateModelConfig() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to update model config");
-      return api.modelConfigs.update.responses[200].parse(await res.json());
+      const json = await res.json();
+      return api.modelConfigs.update.responses[200].parse(json);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.modelConfigs.list.path] });
@@ -79,7 +83,8 @@ export function useCreateTariff() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to create tariff");
-      return api.tariffs.create.responses[201].parse(await res.json());
+      const json = await res.json();
+      return api.tariffs.create.responses[201].parse(json);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.modelConfigs.get.path, variables.modelId] });

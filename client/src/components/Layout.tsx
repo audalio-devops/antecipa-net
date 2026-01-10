@@ -47,7 +47,7 @@ export function Layout({ children }: LayoutProps) {
               "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group",
               isActive 
                 ? "bg-emerald-500/10 text-emerald-400 shadow-sm border border-emerald-500/20" 
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                : "text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
             )}>
               <item.icon className={cn(
                 "w-5 h-5 transition-colors",

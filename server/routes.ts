@@ -83,22 +83,22 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
   const revenueBase = totalDiscount; // Revenue for the factor is the discount
   
   if (config.enablePisCofins) {
-    const pis = revenueBase * (Number(config.pisRate) / 100);
-    const cofins = revenueBase * (Number(config.cofinsRate) / 100);
+    const pis = revenueBase * (parseFloat(config.pisRate.toString()) / 100);
+    const cofins = revenueBase * (parseFloat(config.cofinsRate.toString()) / 100);
     
     taxesTotal += pis + cofins;
     taxesBreakdown.push({ name: "PIS/COFINS", value: pis + cofins });
   }
   
   if (config.enableIss) {
-    const iss = revenueBase * (Number(config.issRate) / 100);
+    const iss = revenueBase * (parseFloat(config.issRate.toString()) / 100);
     taxesTotal += iss;
     taxesBreakdown.push({ name: "ISS", value: iss });
   }
   
   if (config.enableIrCsll) {
-    const ir = revenueBase * (Number(config.irRate) / 100);
-    const csll = revenueBase * (Number(config.csllRate) / 100);
+    const ir = revenueBase * (parseFloat(config.irRate.toString()) / 100);
+    const csll = revenueBase * (parseFloat(config.csllRate.toString()) / 100);
     
     taxesTotal += ir + csll;
     taxesBreakdown.push({ name: "IR/CSLL", value: ir + csll });
