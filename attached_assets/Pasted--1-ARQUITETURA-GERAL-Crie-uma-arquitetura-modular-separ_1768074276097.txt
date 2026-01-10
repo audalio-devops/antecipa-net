@@ -1,0 +1,248 @@
+🧩 1. ARQUITETURA GERAL
+
+Crie uma arquitetura modular, separando:
+
+Motor de cálculo (core)
+
+Camada de regras fiscais e regulatórias
+
+Camada de tarifas e custos
+
+Camada de produtos (factoring, securitizadora, fundo)
+
+Camada de simulação e comparação
+
+Camada de configuração dinâmica (JSON ou formulário)
+
+O sistema deve aceitar múltiplos cenários simultâneos para comparação.
+
+🧮 2. ENTRADAS OBRIGATÓRIAS (PARAMETRIZÁVEIS)
+📌 Dados do título
+
+Valor nominal do título
+
+Data de emissão
+
+Data de vencimento
+
+Prazo em dias (calculado automaticamente)
+
+Tipo de recebível (duplicata, boleto, cartão, contrato, etc.)
+
+📌 Modelo de operação
+
+Tipo de operação:
+
+FACTORY
+
+SECURITIZADORA
+
+FUNDO
+
+Regime tributário do cedente:
+
+Simples
+
+Lucro Presumido
+
+Lucro Real
+
+📊 3. TAXAS FINANCEIRAS
+
+Todas editáveis pelo usuário:
+
+Taxa de desconto (% ao mês ou ao dia)
+
+Fator de compra (opcional)
+
+Floating (dias)
+
+Spread adicional
+
+Taxa flat (se existir)
+
+Taxa mínima por operação
+
+Permitir escolher:
+
+Capitalização simples ou composta
+
+Cálculo pro-rata dia
+
+💸 4. TARIFAS OPERACIONAIS (TODAS OPCIONAIS)
+
+Cada tarifa deve:
+
+Poder ser ativada/desativada
+
+Ter valor fixo ou percentual
+
+Ter valor mínimo e máximo
+
+Inclua no sistema:
+
+Tarifa de abertura de cadastro
+
+Tarifa por boleto
+
+Tarifa de cobrança bancária
+
+Tarifa de TED / PIX
+
+Tarifa de custódia
+
+Tarifa de liquidação
+
+Tarifa de borderô
+
+Tarifa de análise de crédito
+
+Tarifa de gestão (fundos)
+
+Tarifa de administração (fundos)
+
+Taxa de performance (fundos)
+
+🏛️ 5. IMPOSTOS E ENCARGOS (REGRAS FLEXÍVEIS)
+🔹 IOF
+
+Ativar ou desativar
+
+Percentual diário
+
+Percentual adicional
+
+Base de cálculo configurável
+
+🔹 Impostos diretos
+
+PIS
+
+COFINS
+
+ISS
+
+IR
+
+CSLL
+
+Cada imposto deve permitir:
+
+Alíquota configurável
+
+Base de cálculo configurável
+
+Aplicação apenas quando o modelo exigir
+
+📌 Regra-chave:
+
+Fundos de investimento não devem aplicar IOF nem impostos operacionais, salvo exceção configurável.
+
+🔄 6. REGRAS POR MODELO
+FACTORING
+
+Aplica IOF (configurável)
+
+Aplica impostos
+
+Aplica tarifas operacionais
+
+Compra definitiva do crédito
+
+SECURITIZADORA
+
+Pode aplicar IOF ou não
+
+Pode aplicar impostos conforme estrutura
+
+Pode operar com coobrigação ou sem
+
+Antecipação estruturada
+
+FUNDO
+
+Não aplica IOF
+
+Não aplica impostos operacionais
+
+Aplica taxa de administração e performance
+
+Precificação baseada em taxa alvo
+
+📈 7. SAÍDAS DO SISTEMA
+
+O sistema deve exibir:
+
+Valor bruto do título
+
+Valor descontado (juros)
+
+Total de tarifas
+
+Total de impostos
+
+Valor líquido a pagar ao cedente
+
+Custo efetivo total (CET)
+
+Taxa efetiva mensal e anual
+
+Margem da operação
+
+Rentabilidade do investidor (fundos)
+
+🧪 8. SIMULAÇÃO E COMPARAÇÃO
+
+Permitir:
+
+Simular o mesmo título em:
+
+Factoring vs Securitizadora vs Fundo
+
+Comparar lado a lado:
+
+Valor líquido
+
+CET
+
+Margem
+
+Rentabilidade
+
+⚙️ 9. CONFIGURAÇÃO DINÂMICA
+
+Criar um painel ou arquivo de configuração onde seja possível:
+
+Alterar qualquer taxa
+
+Criar novas tarifas
+
+Criar novos impostos
+
+Criar novos modelos de operação
+
+Sem alterar o código-fonte.
+
+🧱 10. BOAS PRÁTICAS
+
+Código limpo e comentado
+
+Funções puras no motor de cálculo
+
+Separação clara entre regra e valor
+
+Preparado para escalar
+
+Preparado para auditoria e compliance
+
+🎯 RESULTADO FINAL ESPERADO
+
+Um motor de cálculo profissional, comparável ou superior a:
+
+WBA
+
+NetFactor
+
+Engines proprietárias de fundos
+
+Com controle total nas mãos do operador, sem hardcode, sem gambiarras.
