@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Simulator from "@/pages/Simulator";
 import Settings from "@/pages/Settings";
+import HistoryPage from "@/pages/History";
 
 function Router() {
   return (
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={Dashboard}/>
       <Route path="/simulator" component={Simulator}/>
       <Route path="/settings" component={Settings}/>
+      <Route path="/history" component={HistoryPage}/>
       <Route component={NotFound} />
     </Switch>
   );

@@ -2,11 +2,27 @@ import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { ArrowRight, TrendingUp, Calculator, Users, Building2 } from "lucide-react";
+import { ArrowRight, TrendingUp, Calculator, Building2 } from "lucide-react";
 import { useModelConfigs } from "@/hooks/use-models";
+import { useSimulations } from "@/hooks/use-simulations";
+import { isToday, subDays } from "date-fns";
 
 export default function Dashboard() {
   const { data: models } = useModelConfigs();
+  const { data: simulations } = useSimulations();
+
+  const simulationsToday = simulations?.filter(s => isToday(new Date(s.createdAt!))).length || 0;
+  const simulationsYesterday = simulations?.filter(s => {
+    const date = new Date(s.createdAt!);
+    const yesterday = subDays(new Date(), 1);
+    return date.getDate() === yesterday.getDate() && 
+           date.getMonth() === yesterday.getMonth() && 
+           date.getFullYear() === yesterday.getFullYear();
+  }).length || 0;
+
+  const percentChange = simulationsYesterday === 0 
+    ? (simulationsToday > 0 ? 100 : 0)
+    : Math.round(((simulationsToday - simulationsYesterday) / simulationsYesterday) * 100);
 
   return (
     <Layout>
@@ -32,12 +48,14 @@ export default function Dashboard() {
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Simulações Hoje</CardDescription>
-            <CardTitle className="text-4xl font-bold font-display text-slate-900">0</CardTitle>
+            <CardTitle className="text-4xl font-bold font-display text-slate-900">{simulationsToday}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm text-slate-500 flex items-center gap-1">
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
-              <span className="text-emerald-600 font-medium">+0%</span> vs. ontem
+              <TrendingUp className={cn("w-4 h-4", percentChange >= 0 ? "text-emerald-500" : "text-rose-500")} />
+              <span className={cn("font-medium", percentChange >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                {percentChange >= 0 ? "+" : ""}{percentChange}%
+              </span> vs. ontem
             </div>
           </CardContent>
         </Card>

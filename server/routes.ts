@@ -216,6 +216,11 @@ export async function registerRoutes(
     res.status(201).json(simulation);
   });
 
+  app.get(api.calculator.listSimulations.path, async (req, res) => {
+    const sims = await storage.getSimulations();
+    res.json(sims);
+  });
+
   // Seed Data (if empty)
   const configs = await storage.getModelConfigs();
   if (configs.length === 0) {

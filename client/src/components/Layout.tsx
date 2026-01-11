@@ -19,8 +19,8 @@ interface LayoutProps {
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/simulator", label: "Simulador", icon: Calculator },
+  { href: "/history", label: "Histórico", icon: History },
   { href: "/settings", label: "Configurações", icon: Settings },
-  // { href: "/history", label: "Histórico", icon: History },
 ];
 
 export function Layout({ children }: LayoutProps) {

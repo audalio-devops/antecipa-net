@@ -69,8 +69,14 @@ export class DatabaseStorage implements IStorage {
     return newSim;
   }
 
-  async getSimulations(): Promise<Simulation[]> {
-    return await db.select().from(simulations).orderBy(simulations.createdAt);
+  async getSimulations(): Promise<(Simulation & { modelConfig: ModelConfig })[]> {
+    const sims = await db.query.simulations.findMany({
+      with: {
+        modelConfig: true
+      },
+      orderBy: (sims, { desc }) => [desc(sims.createdAt)]
+    });
+    return sims as (Simulation & { modelConfig: ModelConfig })[];
   }
 }
 

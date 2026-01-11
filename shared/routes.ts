@@ -104,6 +104,13 @@ export const api = {
       responses: {
         201: z.custom<typeof simulations.$inferSelect>(),
       }
+    },
+    listSimulations: {
+      method: 'GET' as const,
+      path: '/api/simulations',
+      responses: {
+        200: z.array(z.custom<typeof simulations.$inferSelect & { modelConfig: typeof modelConfigs.$inferSelect }>()),
+      }
     }
   }
 };
