@@ -6,6 +6,7 @@ import { ArrowRight, TrendingUp, Calculator, Building2 } from "lucide-react";
 import { useModelConfigs } from "@/hooks/use-models";
 import { useSimulations } from "@/hooks/use-simulations";
 import { isToday, subDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { data: models } = useModelConfigs();
