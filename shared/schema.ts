@@ -4,12 +4,23 @@ import { z } from "zod";
 import { relations } from "drizzle-orm";
 
 // === ENUMS ===
-// We use text fields with validation for flexibility, but define the constants here
 export const MODEL_TYPES = ["FACTORING", "SECURITIZADORA", "FIDC"] as const;
 export const TAX_REGIMES = ["SIMPLES", "LUCRO_PRESUMIDO", "LUCRO_REAL"] as const;
 export const CALCULATION_TYPES = ["SIMPLE", "COMPOUND"] as const;
+export const USER_ROLES = ["ADMIN", "OPERATOR"] as const;
 
 // === TABLES ===
+
+// Users
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  role: text("role").notNull().default("OPERATOR"), // ADMIN or OPERATOR
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 // Configuration for each Operation Model (The "Scenario")
 export const modelConfigs = pgTable("model_configs", {
@@ -102,6 +113,7 @@ export const simulationsRelations = relations(simulations, ({ one }) => ({
 export const insertModelConfigSchema = createInsertSchema(modelConfigs).omit({ id: true, createdAt: true });
 export const insertTariffSchema = createInsertSchema(tariffs).omit({ id: true });
 export const insertSimulationSchema = createInsertSchema(simulations).omit({ id: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 
 export type ModelConfig = typeof modelConfigs.$inferSelect;
 export type InsertModelConfig = z.infer<typeof insertModelConfigSchema>;
@@ -109,6 +121,9 @@ export type Tariff = typeof tariffs.$inferSelect;
 export type InsertTariff = z.infer<typeof insertTariffSchema>;
 export type Simulation = typeof simulations.$inferSelect;
 export type InsertSimulation = z.infer<typeof insertSimulationSchema>;
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type SafeUser = Omit<User, "password">;
 
 // Input for the Calculation Engine (not just DB insert)
 export const calculateInputSchema = z.object({

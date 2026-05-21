@@ -1,9 +1,10 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { differenceInDays, parseISO } from "date-fns";
+import bcrypt from "bcryptjs";
 import { 
   type CalculateInput, 
   type CalculationResult, 
@@ -11,18 +12,30 @@ import {
   type Tariff 
 } from "@shared/schema";
 
+// === AUTH MIDDLEWARE ===
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  next();
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  if (req.session.userRole !== "ADMIN") {
+    return res.status(403).json({ message: "Acesso negado. Apenas administradores." });
+  }
+  next();
+}
+
 // === CALCULATION ENGINE ===
 function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs: Tariff[]): CalculationResult {
   const { titleValue, emissionDate, dueDate } = input;
   
-  // 1. Calculate Days (Prazo)
   const days = differenceInDays(parseISO(dueDate), parseISO(emissionDate));
-  const effectiveDays = Math.max(days + config.floatingDays, 1); // Apply floating
-  
-  // 2. Financial Discount (Juros)
-  // Simple: Value * Rate * Days / 30
-  // Compound: Value * ((1 + Rate)^(Days/30) - 1)
-  // Converting Monthly Rate to Daily: (1 + Monthly)^ (1/30) - 1
+  const effectiveDays = Math.max(days + config.floatingDays, 1);
   
   const monthlyRateDecimal = Number(config.discountRateMonthly) / 100;
   let discountFactor = 0;
@@ -31,18 +44,13 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
     const dailyRate = Math.pow(1 + monthlyRateDecimal, 1 / 30) - 1;
     discountFactor = Math.pow(1 + dailyRate, effectiveDays) - 1;
   } else {
-    // Simple
     discountFactor = (monthlyRateDecimal / 30) * effectiveDays;
   }
   
   const financialDiscount = titleValue * discountFactor;
-  
-  // 3. Ad Valorem (Fator de compra) - usually flat % on face value
   const adValorem = titleValue * (Number(config.adValoremRate) / 100);
-  
   const totalDiscount = financialDiscount + adValorem;
   
-  // 4. Tariffs
   let tariffsTotal = 0;
   const tariffsBreakdown: { name: string; value: number }[] = [];
   
@@ -56,7 +64,6 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
       value = titleValue * (Number(tariff.value) / 100);
     }
     
-    // Min/Max constraints
     if (tariff.minValue && value < Number(tariff.minValue)) value = Number(tariff.minValue);
     if (tariff.maxValue && value > Number(tariff.maxValue)) value = Number(tariff.maxValue);
     
@@ -64,28 +71,22 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
     tariffsBreakdown.push({ name: tariff.name, value });
   }
   
-  // 5. Taxes (IOF, PIS, COFINS, ISS, IR, CSLL)
   let taxesTotal = 0;
   const taxesBreakdown: { name: string; value: number }[] = [];
   
-  // IOF (Only if enabled)
   if (config.enableIof) {
-    // IOF Daily limited to 365 days usually, but simple logic here
     const iofDaily = titleValue * (Number(config.iofDailyRate) / 100) * effectiveDays;
     const iofAdditional = titleValue * (Number(config.iofAdditionalRate) / 100);
     const iofTotal = iofDaily + iofAdditional;
-    
     taxesTotal += iofTotal;
     taxesBreakdown.push({ name: "IOF", value: iofTotal });
   }
   
-  // PIS/COFINS (Usually on the revenue/discount, not face value, but simplified here as per "Base de cálculo configurável" - assuming on Revenue (Discount + AdValorem))
-  const revenueBase = totalDiscount; // Revenue for the factor is the discount
+  const revenueBase = totalDiscount;
   
   if (config.enablePisCofins) {
     const pis = revenueBase * (parseFloat(config.pisRate.toString()) / 100);
     const cofins = revenueBase * (parseFloat(config.cofinsRate.toString()) / 100);
-    
     taxesTotal += pis + cofins;
     taxesBreakdown.push({ name: "PIS/COFINS", value: pis + cofins });
   }
@@ -99,18 +100,15 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
   if (config.enableIrCsll) {
     const ir = revenueBase * (parseFloat(config.irRate.toString()) / 100);
     const csll = revenueBase * (parseFloat(config.csllRate.toString()) / 100);
-    
     taxesTotal += ir + csll;
     taxesBreakdown.push({ name: "IR/CSLL", value: ir + csll });
   }
 
-  // 6. Net Value
   const totalCost = totalDiscount + tariffsTotal + taxesTotal;
   const netValue = titleValue - totalCost;
   
-  // 7. Indicators
-  const cetValue = totalCost; // Total Cost
-  const cetPercent = (cetValue / netValue) * 100; // Over net value
+  const cetValue = totalCost;
+  const cetPercent = (cetValue / netValue) * 100;
   const cetMonthly = (Math.pow(1 + (cetPercent / 100), 30 / effectiveDays) - 1) * 100;
   const cetYearly = (Math.pow(1 + (cetPercent / 100), 365 / effectiveDays) - 1) * 100;
 
@@ -139,21 +137,126 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // === API ROUTES ===
+  // === AUTH ROUTES ===
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+      }).parse(req.body);
+
+      const user = await storage.getUserByUsername(username);
+      if (!user || !user.isActive) {
+        return res.status(401).json({ message: "Usuário ou senha incorretos" });
+      }
+
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        return res.status(401).json({ message: "Usuário ou senha incorretos" });
+      }
+
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Dados inválidos" });
+      throw err;
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy(() => {
+      res.json({ ok: true });
+    });
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Não autenticado" });
+    }
+    const user = await storage.getUserById(req.session.userId);
+    if (!user) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Usuário não encontrado" });
+    }
+    const { password: _, ...safeUser } = user;
+    res.json(safeUser);
+  });
+
+  // === USER MANAGEMENT (Admin only) ===
+
+  app.get("/api/users", requireAdmin, async (req, res) => {
+    const allUsers = await storage.getUsers();
+    res.json(allUsers);
+  });
+
+  app.post("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const input = z.object({
+        username: z.string().min(3),
+        password: z.string().min(6),
+        name: z.string().min(1),
+        role: z.enum(["ADMIN", "OPERATOR"]),
+        isActive: z.boolean().optional().default(true),
+      }).parse(req.body);
+
+      const existing = await storage.getUserByUsername(input.username);
+      if (existing) {
+        return res.status(400).json({ message: "Nome de usuário já existe" });
+      }
+
+      const hashedPassword = await bcrypt.hash(input.password, 10);
+      const user = await storage.createUser({ ...input, password: hashedPassword });
+      const { password: _, ...safeUser } = user;
+      res.status(201).json(safeUser);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.put("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const input = z.object({
+        name: z.string().min(1).optional(),
+        role: z.enum(["ADMIN", "OPERATOR"]).optional(),
+        isActive: z.boolean().optional(),
+        password: z.string().min(6).optional(),
+      }).parse(req.body);
+
+      const updateData: any = { ...input };
+      if (input.password) {
+        updateData.password = await bcrypt.hash(input.password, 10);
+      }
+
+      const user = await storage.updateUser(id, updateData);
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  // === API ROUTES (protected) ===
   
   // Model Configs
-  app.get(api.modelConfigs.list.path, async (req, res) => {
+  app.get(api.modelConfigs.list.path, requireAuth, async (req, res) => {
     const configs = await storage.getModelConfigs();
     res.json(configs);
   });
 
-  app.get(api.modelConfigs.get.path, async (req, res) => {
+  app.get(api.modelConfigs.get.path, requireAuth, async (req, res) => {
     const config = await storage.getModelConfig(Number(req.params.id));
     if (!config) return res.status(404).json({ message: "Config not found" });
     res.json(config);
   });
 
-  app.post(api.modelConfigs.create.path, async (req, res) => {
+  app.post(api.modelConfigs.create.path, requireAdmin, async (req, res) => {
     try {
       const input = api.modelConfigs.create.input.parse(req.body);
       const config = await storage.createModelConfig(input);
@@ -164,13 +267,13 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.modelConfigs.update.path, async (req, res) => {
+  app.put(api.modelConfigs.update.path, requireAdmin, async (req, res) => {
     const config = await storage.updateModelConfig(Number(req.params.id), req.body);
     res.json(config);
   });
 
   // Tariffs
-  app.post(api.tariffs.create.path, async (req, res) => {
+  app.post(api.tariffs.create.path, requireAdmin, async (req, res) => {
     const input = api.tariffs.create.input.parse(req.body);
     const tariff = await storage.createTariff({
       ...input,
@@ -179,13 +282,13 @@ export async function registerRoutes(
     res.status(201).json(tariff);
   });
 
-  app.delete(api.tariffs.delete.path, async (req, res) => {
+  app.delete(api.tariffs.delete.path, requireAdmin, async (req, res) => {
     await storage.deleteTariff(Number(req.params.id));
     res.sendStatus(204);
   });
 
   // Calculator
-  app.post(api.calculator.calculate.path, async (req, res) => {
+  app.post(api.calculator.calculate.path, requireAuth, async (req, res) => {
     const input = api.calculator.calculate.input.parse(req.body);
     
     const config = await storage.getModelConfig(input.modelConfigId);
@@ -196,7 +299,7 @@ export async function registerRoutes(
     res.json({ result, model: config });
   });
 
-  app.post(api.calculator.saveSimulation.path, async (req, res) => {
+  app.post(api.calculator.saveSimulation.path, requireAuth, async (req, res) => {
     const { modelConfigId, result, titleData } = req.body;
     
     const simulation = await storage.createSimulation({
@@ -216,7 +319,7 @@ export async function registerRoutes(
     res.status(201).json(simulation);
   });
 
-  app.get(api.calculator.listSimulations.path, async (req, res) => {
+  app.get(api.calculator.listSimulations.path, requireAuth, async (req, res) => {
     const sims = await storage.getSimulations();
     res.json(sims);
   });
@@ -224,9 +327,8 @@ export async function registerRoutes(
   // Seed Data (if empty)
   const configs = await storage.getModelConfigs();
   if (configs.length === 0) {
-    console.log("Seeding initial data...");
+    console.log("Seeding initial model data...");
     
-    // 1. Factoring Standard
     const factoring = await storage.createModelConfig({
       name: "Factoring Padrão",
       type: "FACTORING",
@@ -240,20 +342,18 @@ export async function registerRoutes(
     await storage.createTariff({ modelConfigId: factoring.id, name: "TED", type: "FIXED", value: "15.00" });
     await storage.createTariff({ modelConfigId: factoring.id, name: "Boleto", type: "FIXED", value: "4.50" });
 
-    // 2. Securitizadora
     const securitizadora = await storage.createModelConfig({
       name: "Securitizadora",
       type: "SECURITIZADORA",
       taxRegime: "LUCRO_PRESUMIDO",
       discountRateMonthly: "2.8",
       adValoremRate: "0.3",
-      enableIof: false, // Often exempt or different structure
+      enableIof: false,
       enablePisCofins: true,
     });
     
     await storage.createTariff({ modelConfigId: securitizadora.id, name: "Emissão", type: "PERCENT", value: "0.1" });
 
-    // 3. FIDC
     const fidc = await storage.createModelConfig({
       name: "Fundo de Investimento (FIDC)",
       type: "FIDC",
@@ -261,11 +361,26 @@ export async function registerRoutes(
       discountRateMonthly: "2.2",
       adValoremRate: "0.0",
       enableIof: false,
-      enablePisCofins: false, // Exempt from most operational taxes
+      enablePisCofins: false,
       enableIss: false
     });
     
     await storage.createTariff({ modelConfigId: fidc.id, name: "Taxa de Gestão", type: "PERCENT", value: "0.5" });
+  }
+
+  // Seed Admin user (if no users exist)
+  const existingUsers = await storage.getUsers();
+  if (existingUsers.length === 0) {
+    console.log("Seeding admin user...");
+    const hashedPassword = await bcrypt.hash("admin123", 10);
+    await storage.createUser({
+      username: "admin",
+      password: hashedPassword,
+      name: "Administrador",
+      role: "ADMIN",
+      isActive: true,
+    });
+    console.log("Admin user created: admin / admin123");
   }
 
   return httpServer;

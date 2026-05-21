@@ -1,12 +1,19 @@
 import { 
-  modelConfigs, tariffs, simulations,
-  type InsertModelConfig, type InsertTariff, type InsertSimulation,
-  type ModelConfig, type Tariff, type Simulation
+  modelConfigs, tariffs, simulations, users,
+  type InsertModelConfig, type InsertTariff, type InsertSimulation, type InsertUser,
+  type ModelConfig, type Tariff, type Simulation, type User, type SafeUser
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
+  // Users
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserById(id: number): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<InsertUser>): Promise<User>;
+  getUsers(): Promise<SafeUser[]>;
+
   // Model Configs
   getModelConfigs(): Promise<ModelConfig[]>;
   getModelConfig(id: number): Promise<(ModelConfig & { tariffs: Tariff[] }) | undefined>;
@@ -24,6 +31,40 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // === USERS ===
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserById(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
+
+  async updateUser(id: number, user: Partial<InsertUser>): Promise<User> {
+    const [updated] = await db.update(users).set(user).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
+  async getUsers(): Promise<SafeUser[]> {
+    const result = await db.select({
+      id: users.id,
+      username: users.username,
+      name: users.name,
+      role: users.role,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+    }).from(users).orderBy(users.id);
+    return result as SafeUser[];
+  }
+
+  // === MODEL CONFIGS ===
   async getModelConfigs(): Promise<ModelConfig[]> {
     return await db.select().from(modelConfigs).orderBy(modelConfigs.id);
   }
@@ -51,6 +92,7 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  // === TARIFFS ===
   async getTariffsByModelId(modelId: number): Promise<Tariff[]> {
     return await db.select().from(tariffs).where(eq(tariffs.modelConfigId, modelId));
   }
@@ -64,6 +106,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(tariffs).where(eq(tariffs.id, id));
   }
 
+  // === SIMULATIONS ===
   async createSimulation(simulation: InsertSimulation): Promise<Simulation> {
     const [newSim] = await db.insert(simulations).values(simulation).returning();
     return newSim;

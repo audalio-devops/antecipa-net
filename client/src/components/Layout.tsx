@@ -5,27 +5,54 @@ import {
   History, 
   Menu, 
   LayoutDashboard,
-  WalletCards
+  WalletCards,
+  Users,
+  LogOut,
+  ChevronDown,
+  Shield,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-const navItems = [
+const operatorNavItems = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/simulator", label: "Simulador", icon: Calculator },
+  { href: "/history", label: "Histórico", icon: History },
+];
+
+const adminNavItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/simulator", label: "Simulador", icon: Calculator },
   { href: "/history", label: "Histórico", icon: History },
   { href: "/settings", label: "Configurações", icon: Settings },
+  { href: "/users", label: "Usuários", icon: Users },
 ];
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { user, isAdmin, logout } = useAuth();
+
+  const navItems = isAdmin ? adminNavItems : operatorNavItems;
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   const NavContent = () => (
     <div className="flex flex-col h-full bg-slate-900 text-white">
@@ -59,14 +86,51 @@ export function Layout({ children }: LayoutProps) {
         })}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
-        <div className="bg-slate-800 rounded-lg p-4">
+      <div className="p-4 border-t border-slate-800 space-y-3">
+        <div className="bg-slate-800 rounded-lg p-3">
           <p className="text-xs text-slate-400 mb-1">Status do Sistema</p>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-sm font-medium text-white">Operacional</span>
           </div>
         </div>
+
+        {/* User info + logout */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              data-testid="button-user-menu"
+              className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors text-left"
+            >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isAdmin ? "bg-emerald-500/20" : "bg-slate-700"}`}>
+                {isAdmin
+                  ? <Shield className="w-4 h-4 text-emerald-400" />
+                  : <User className="w-4 h-4 text-slate-400" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate" data-testid="text-current-user">{user?.name}</p>
+                <p className="text-xs text-slate-400">{isAdmin ? "Administrador" : "Operador"}</p>
+              </div>
+              <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" className="w-52">
+            <div className="px-2 py-1.5">
+              <p className="text-sm font-medium">{user?.name}</p>
+              <p className="text-xs text-slate-500">@{user?.username}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid="button-logout"
+              onClick={handleLogout}
+              className="text-red-600 cursor-pointer focus:text-red-600"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair do sistema
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
