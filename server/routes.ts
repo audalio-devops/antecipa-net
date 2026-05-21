@@ -160,7 +160,13 @@ export async function registerRoutes(
       req.session.userRole = user.role;
 
       const { password: _, ...safeUser } = user;
-      res.json(safeUser);
+
+      req.session.save((err) => {
+        if (err) {
+          return res.status(500).json({ message: "Erro ao iniciar sessão" });
+        }
+        res.json(safeUser);
+      });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: "Dados inválidos" });
       throw err;
