@@ -1,10 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { pool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -15,12 +13,7 @@ declare module "http" {
   }
 }
 
-declare module "express-session" {
-  interface SessionData {
-    userId: number;
-    userRole: string;
-  }
-}
+app.set("trust proxy", 1);
 
 app.use(
   express.json({
@@ -31,28 +24,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
-
-// Trust proxy (required for secure cookies behind Replit/reverse proxy)
-app.set("trust proxy", 1);
-
-// Session setup
-const PgSession = connectPgSimple(session);
-app.use(session({
-  store: new PgSession({
-    pool,
-    tableName: "session",
-    createTableIfMissing: true,
-  }),
-  secret: process.env.SESSION_SECRET || "antecipa-net-secret-key",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  },
-}));
+app.use(cookieParser());
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

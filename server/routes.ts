@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { differenceInDays, parseISO } from "date-fns";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { 
   type CalculateInput, 
   type CalculationResult, 
@@ -12,21 +13,58 @@ import {
   type Tariff 
 } from "@shared/schema";
 
+const JWT_SECRET = process.env.SESSION_SECRET || "antecipa-net-jwt-secret";
+const COOKIE_NAME = "antecipa_token";
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: (process.env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
+  maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  path: "/",
+};
+
+interface JwtPayload {
+  userId: number;
+  userRole: string;
+}
+
+function signToken(payload: JwtPayload): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
+}
+
+function verifyToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function getTokenPayload(req: Request): JwtPayload | null {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) return null;
+  return verifyToken(token);
+}
+
 // === AUTH MIDDLEWARE ===
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
+  const payload = getTokenPayload(req);
+  if (!payload) {
     return res.status(401).json({ message: "Não autenticado" });
   }
+  (req as any).authPayload = payload;
   next();
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
+  const payload = getTokenPayload(req);
+  if (!payload) {
     return res.status(401).json({ message: "Não autenticado" });
   }
-  if (req.session.userRole !== "ADMIN") {
+  if (payload.userRole !== "ADMIN") {
     return res.status(403).json({ message: "Acesso negado. Apenas administradores." });
   }
+  (req as any).authPayload = payload;
   next();
 }
 
@@ -56,17 +94,14 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
   
   for (const tariff of tariffs) {
     if (!tariff.isActive) continue;
-    
     let value = 0;
     if (tariff.type === "FIXED") {
       value = Number(tariff.value);
     } else {
       value = titleValue * (Number(tariff.value) / 100);
     }
-    
     if (tariff.minValue && value < Number(tariff.minValue)) value = Number(tariff.minValue);
     if (tariff.maxValue && value > Number(tariff.maxValue)) value = Number(tariff.maxValue);
-    
     tariffsTotal += value;
     tariffsBreakdown.push({ name: tariff.name, value });
   }
@@ -106,7 +141,6 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
 
   const totalCost = totalDiscount + tariffsTotal + taxesTotal;
   const netValue = titleValue - totalCost;
-  
   const cetValue = totalCost;
   const cetPercent = (cetValue / netValue) * 100;
   const cetMonthly = (Math.pow(1 + (cetPercent / 100), 30 / effectiveDays) - 1) * 100;
@@ -119,23 +153,13 @@ function calculateReceivable(input: CalculateInput, config: ModelConfig, tariffs
     discount: totalDiscount,
     tariffsTotal,
     taxesTotal,
-    breakdown: {
-      tariffs: tariffsBreakdown,
-      taxes: taxesBreakdown
-    },
-    indicators: {
-      cetMonthly,
-      cetYearly,
-      factorRate: (totalDiscount / titleValue) * 100
-    }
+    breakdown: { tariffs: tariffsBreakdown, taxes: taxesBreakdown },
+    indicators: { cetMonthly, cetYearly, factorRate: (totalDiscount / titleValue) * 100 }
   };
 }
 
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
+export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   
   // === AUTH ROUTES ===
 
@@ -156,17 +180,11 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Usuário ou senha incorretos" });
       }
 
-      req.session.userId = user.id;
-      req.session.userRole = user.role;
+      const token = signToken({ userId: user.id, userRole: user.role });
+      res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
 
       const { password: _, ...safeUser } = user;
-
-      req.session.save((err) => {
-        if (err) {
-          return res.status(500).json({ message: "Erro ao iniciar sessão" });
-        }
-        res.json(safeUser);
-      });
+      return res.json(safeUser);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: "Dados inválidos" });
       throw err;
@@ -174,29 +192,29 @@ export async function registerRoutes(
   });
 
   app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy(() => {
-      res.json({ ok: true });
-    });
+    res.clearCookie(COOKIE_NAME, { path: "/" });
+    return res.json({ ok: true });
   });
 
   app.get("/api/auth/me", async (req, res) => {
-    if (!req.session.userId) {
+    const payload = getTokenPayload(req);
+    if (!payload) {
       return res.status(401).json({ message: "Não autenticado" });
     }
-    const user = await storage.getUserById(req.session.userId);
+    const user = await storage.getUserById(payload.userId);
     if (!user) {
-      req.session.destroy(() => {});
+      res.clearCookie(COOKIE_NAME, { path: "/" });
       return res.status(401).json({ message: "Usuário não encontrado" });
     }
     const { password: _, ...safeUser } = user;
-    res.json(safeUser);
+    return res.json(safeUser);
   });
 
   // === USER MANAGEMENT (Admin only) ===
 
   app.get("/api/users", requireAdmin, async (req, res) => {
     const allUsers = await storage.getUsers();
-    res.json(allUsers);
+    return res.json(allUsers);
   });
 
   app.post("/api/users", requireAdmin, async (req, res) => {
@@ -217,7 +235,7 @@ export async function registerRoutes(
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const user = await storage.createUser({ ...input, password: hashedPassword });
       const { password: _, ...safeUser } = user;
-      res.status(201).json(safeUser);
+      return res.status(201).json(safeUser);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
@@ -241,7 +259,7 @@ export async function registerRoutes(
 
       const user = await storage.updateUser(id, updateData);
       const { password: _, ...safeUser } = user;
-      res.json(safeUser);
+      return res.json(safeUser);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
@@ -250,23 +268,22 @@ export async function registerRoutes(
 
   // === API ROUTES (protected) ===
   
-  // Model Configs
   app.get(api.modelConfigs.list.path, requireAuth, async (req, res) => {
     const configs = await storage.getModelConfigs();
-    res.json(configs);
+    return res.json(configs);
   });
 
   app.get(api.modelConfigs.get.path, requireAuth, async (req, res) => {
     const config = await storage.getModelConfig(Number(req.params.id));
     if (!config) return res.status(404).json({ message: "Config not found" });
-    res.json(config);
+    return res.json(config);
   });
 
   app.post(api.modelConfigs.create.path, requireAdmin, async (req, res) => {
     try {
       const input = api.modelConfigs.create.input.parse(req.body);
       const config = await storage.createModelConfig(input);
-      res.status(201).json(config);
+      return res.status(201).json(config);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
@@ -275,39 +292,33 @@ export async function registerRoutes(
 
   app.put(api.modelConfigs.update.path, requireAdmin, async (req, res) => {
     const config = await storage.updateModelConfig(Number(req.params.id), req.body);
-    res.json(config);
+    return res.json(config);
   });
 
-  // Tariffs
   app.post(api.tariffs.create.path, requireAdmin, async (req, res) => {
     const input = api.tariffs.create.input.parse(req.body);
     const tariff = await storage.createTariff({
       ...input,
       modelConfigId: Number(req.params.modelId)
     });
-    res.status(201).json(tariff);
+    return res.status(201).json(tariff);
   });
 
   app.delete(api.tariffs.delete.path, requireAdmin, async (req, res) => {
     await storage.deleteTariff(Number(req.params.id));
-    res.sendStatus(204);
+    return res.sendStatus(204);
   });
 
-  // Calculator
   app.post(api.calculator.calculate.path, requireAuth, async (req, res) => {
     const input = api.calculator.calculate.input.parse(req.body);
-    
     const config = await storage.getModelConfig(input.modelConfigId);
     if (!config) return res.status(404).json({ message: "Model config not found" });
-    
     const result = calculateReceivable(input, config, config.tariffs);
-    
-    res.json({ result, model: config });
+    return res.json({ result, model: config });
   });
 
   app.post(api.calculator.saveSimulation.path, requireAuth, async (req, res) => {
     const { modelConfigId, result, titleData } = req.body;
-    
     const simulation = await storage.createSimulation({
       modelConfigId,
       titleValue: titleData.value,
@@ -321,70 +332,46 @@ export async function registerRoutes(
       cetMonthly: result.indicators.cetMonthly.toString(),
       cetYearly: result.indicators.cetYearly.toString()
     });
-    
-    res.status(201).json(simulation);
+    return res.status(201).json(simulation);
   });
 
   app.get(api.calculator.listSimulations.path, requireAuth, async (req, res) => {
     const sims = await storage.getSimulations();
-    res.json(sims);
+    return res.json(sims);
   });
 
-  // Seed Data (if empty)
+  // Seed Data
   const configs = await storage.getModelConfigs();
   if (configs.length === 0) {
     console.log("Seeding initial model data...");
-    
     const factoring = await storage.createModelConfig({
-      name: "Factoring Padrão",
-      type: "FACTORING",
-      taxRegime: "LUCRO_REAL",
-      discountRateMonthly: "3.5",
-      adValoremRate: "0.5",
-      enableIof: true,
-      enablePisCofins: true,
+      name: "Factoring Padrão", type: "FACTORING", taxRegime: "LUCRO_REAL",
+      discountRateMonthly: "3.5", adValoremRate: "0.5", enableIof: true, enablePisCofins: true,
     });
-    
     await storage.createTariff({ modelConfigId: factoring.id, name: "TED", type: "FIXED", value: "15.00" });
     await storage.createTariff({ modelConfigId: factoring.id, name: "Boleto", type: "FIXED", value: "4.50" });
 
     const securitizadora = await storage.createModelConfig({
-      name: "Securitizadora",
-      type: "SECURITIZADORA",
-      taxRegime: "LUCRO_PRESUMIDO",
-      discountRateMonthly: "2.8",
-      adValoremRate: "0.3",
-      enableIof: false,
-      enablePisCofins: true,
+      name: "Securitizadora", type: "SECURITIZADORA", taxRegime: "LUCRO_PRESUMIDO",
+      discountRateMonthly: "2.8", adValoremRate: "0.3", enableIof: false, enablePisCofins: true,
     });
-    
     await storage.createTariff({ modelConfigId: securitizadora.id, name: "Emissão", type: "PERCENT", value: "0.1" });
 
     const fidc = await storage.createModelConfig({
-      name: "Fundo de Investimento (FIDC)",
-      type: "FIDC",
-      taxRegime: "LUCRO_REAL",
-      discountRateMonthly: "2.2",
-      adValoremRate: "0.0",
-      enableIof: false,
-      enablePisCofins: false,
-      enableIss: false
+      name: "Fundo de Investimento (FIDC)", type: "FIDC", taxRegime: "LUCRO_REAL",
+      discountRateMonthly: "2.2", adValoremRate: "0.0", enableIof: false, enablePisCofins: false, enableIss: false
     });
-    
     await storage.createTariff({ modelConfigId: fidc.id, name: "Taxa de Gestão", type: "PERCENT", value: "0.5" });
   }
 
-  // Seed Admin user (if no users exist)
+  // Seed Admin user
   const existingUsers = await storage.getUsers();
   if (existingUsers.length === 0) {
     console.log("Seeding admin user...");
     const hashedPassword = await bcrypt.hash("admin123", 10);
     await storage.createUser({
-      username: "admin",
-      password: hashedPassword,
-      name: "Administrador",
-      role: "ADMIN",
-      isActive: true,
+      username: "admin", password: hashedPassword,
+      name: "Administrador", role: "ADMIN", isActive: true,
     });
     console.log("Admin user created: admin / admin123");
   }
