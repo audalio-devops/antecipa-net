@@ -32,6 +32,9 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Trust proxy (required for secure cookies behind Replit/reverse proxy)
+app.set("trust proxy", 1);
+
 // Session setup
 const PgSession = connectPgSimple(session);
 app.use(session({
@@ -44,8 +47,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     httpOnly: true,
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
   },
 }));
