@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, Save, Percent, AlertCircle, Settings as SettingsIcon } from "lucide-react";
+import { Plus, Trash2, Save, Percent, AlertCircle, Settings as SettingsIcon, CircleCheck, CircleX } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -70,8 +70,20 @@ export default function Settings() {
                   }`}
                 >
                   <div className="truncate">{model.name}</div>
-                  <div className={`text-xs mt-1 ${selectedModelId === model.id ? "text-slate-400" : "text-slate-400"}`}>
-                    {model.type}
+                  <div className="flex items-center justify-between mt-1">
+                    <span className={`text-xs ${selectedModelId === model.id ? "text-slate-400" : "text-slate-400"}`}>
+                      {model.type}
+                    </span>
+                    <span className={`flex items-center gap-1 text-xs font-medium ${
+                      model.isActive
+                        ? selectedModelId === model.id ? "text-emerald-400" : "text-emerald-600"
+                        : selectedModelId === model.id ? "text-red-400" : "text-red-500"
+                    }`}>
+                      {model.isActive
+                        ? <><CircleCheck className="w-3 h-3" /> Ativo</>
+                        : <><CircleX className="w-3 h-3" /> Inativo</>
+                      }
+                    </span>
                   </div>
                 </button>
               ))}
@@ -253,10 +265,25 @@ function ModelEditor({ modelId }: { modelId: number }) {
               <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-semibold">{modelDetails.taxRegime.replace('_', ' ')}</span>
             </CardDescription>
           </div>
-          <Button onClick={form.handleSubmit(onSave)} disabled={updateModel.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            <Save className="w-4 h-4 mr-2" />
-            {updateModel.isPending ? "Salvando..." : "Salvar Alterações"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50">
+              <Switch
+                data-testid="switch-model-active"
+                checked={form.watch("isActive") ?? true}
+                onCheckedChange={(checked) => form.setValue("isActive", checked)}
+              />
+              <span className={`text-sm font-medium flex items-center gap-1 ${form.watch("isActive") ? "text-emerald-600" : "text-red-500"}`}>
+                {form.watch("isActive")
+                  ? <><CircleCheck className="w-4 h-4" /> Ativo</>
+                  : <><CircleX className="w-4 h-4" /> Inativo</>
+                }
+              </span>
+            </div>
+            <Button onClick={form.handleSubmit(onSave)} disabled={updateModel.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Save className="w-4 h-4 mr-2" />
+              {updateModel.isPending ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       

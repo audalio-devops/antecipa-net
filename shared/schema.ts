@@ -54,6 +54,9 @@ export const modelConfigs = pgTable("model_configs", {
   enableIss: boolean("enable_iss").default(true).notNull(),
   enableIrCsll: boolean("enable_ir_csll").default(true).notNull(),
 
+  // Status
+  isActive: boolean("is_active").default(true).notNull(),
+
   createdAt: timestamp("created_at").defaultNow(),
 });
 

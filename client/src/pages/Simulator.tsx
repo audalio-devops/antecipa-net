@@ -150,7 +150,7 @@ export default function Simulator() {
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-3">
-                {models?.map(model => (
+                {models?.filter(m => m.isActive).map(model => (
                   <div key={model.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
                     <Checkbox 
                       id={`model-${model.id}`} 
@@ -170,6 +170,9 @@ export default function Simulator() {
                     </div>
                   </div>
                 ))}
+                {models?.filter(m => m.isActive).length === 0 && (
+                  <p className="text-sm text-slate-400 text-center py-4">Nenhum modelo ativo disponível.</p>
+                )}
               </div>
               <Button 
                 className="w-full mt-6 bg-slate-900 hover:bg-slate-800" 
