@@ -304,6 +304,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return res.status(201).json(tariff);
   });
 
+  app.patch(api.tariffs.update.path, requireAdmin, async (req, res) => {
+    const input = api.tariffs.update.input.parse(req.body);
+    const updated = await storage.updateTariff(Number(req.params.id), input);
+    return res.json(updated);
+  });
+
   app.delete(api.tariffs.delete.path, requireAdmin, async (req, res) => {
     await storage.deleteTariff(Number(req.params.id));
     return res.sendStatus(204);

@@ -67,6 +67,15 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/tariffs/:id',
+      input: insertTariffSchema.omit({ modelConfigId: true }).partial(),
+      responses: {
+        200: z.custom<typeof tariffs.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
     delete: {
       method: 'DELETE' as const,
       path: '/api/tariffs/:id',

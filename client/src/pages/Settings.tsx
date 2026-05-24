@@ -1,5 +1,6 @@
 import { Layout } from "@/components/Layout";
-import { useModelConfigs, useCreateModelConfig, useUpdateModelConfig, useCreateTariff, useDeleteTariff, useModelConfig } from "@/hooks/use-models";
+import { useModelConfigs, useCreateModelConfig, useUpdateModelConfig, useCreateTariff, useDeleteTariff, useUpdateTariff, useModelConfig } from "@/hooks/use-models";
+import type { Tariff } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, Save, Percent, AlertCircle, Settings as SettingsIcon, CircleCheck, CircleX } from "lucide-react";
+import { Plus, Trash2, Save, Pencil, AlertCircle, Settings as SettingsIcon, CircleCheck, CircleX } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -206,8 +207,39 @@ function ModelEditor({ modelId }: { modelId: number }) {
   const { data: modelDetails, isLoading } = useModelConfig(modelId);
   const updateModel = useUpdateModelConfig();
   const createTariff = useCreateTariff();
+  const updateTariff = useUpdateTariff();
   const deleteTariff = useDeleteTariff();
   const { toast } = useToast();
+
+  // Edit tariff state
+  const [editingTariff, setEditingTariff] = useState<Tariff | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editValue, setEditValue] = useState("");
+  const [editType, setEditType] = useState<"FIXED" | "PERCENT">("FIXED");
+  const [editChargeType, setEditChargeType] = useState<"UNICA" | "POR_CLIENTE" | "POR_TITULO">("UNICA");
+
+  const openEditDialog = (tariff: Tariff) => {
+    setEditingTariff(tariff);
+    setEditName(tariff.name);
+    setEditValue(String(tariff.value));
+    setEditType(tariff.type as "FIXED" | "PERCENT");
+    setEditChargeType((tariff.chargeType ?? "UNICA") as "UNICA" | "POR_CLIENTE" | "POR_TITULO");
+  };
+
+  const handleSaveTariff = () => {
+    if (!editingTariff || !editName || !editValue) return;
+    updateTariff.mutate({
+      id: editingTariff.id,
+      modelId,
+      data: { name: editName, value: editValue, type: editType, chargeType: editChargeType }
+    }, {
+      onSuccess: () => {
+        setEditingTariff(null);
+        toast({ title: "Tarifa atualizada!" });
+      },
+      onError: () => toast({ title: "Erro ao atualizar tarifa", variant: "destructive" })
+    });
+  };
   
   // Local state for the form to handle immediate feedback before submit
   const form = useForm<InsertModelConfig>({
@@ -420,9 +452,14 @@ function ModelEditor({ modelId }: { modelId: number }) {
                            </p>
                          </div>
                        </div>
-                       <Button variant="ghost" size="icon" onClick={() => deleteTariff.mutate({ id: tariff.id, modelId })} className="text-red-400 hover:text-red-500 hover:bg-red-50">
-                         <Trash2 className="w-4 h-4" />
-                       </Button>
+                       <div className="flex items-center gap-1">
+                         <Button variant="ghost" size="icon" onClick={() => openEditDialog(tariff)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                           <Pencil className="w-4 h-4" />
+                         </Button>
+                         <Button variant="ghost" size="icon" onClick={() => deleteTariff.mutate({ id: tariff.id, modelId })} className="text-red-400 hover:text-red-500 hover:bg-red-50">
+                           <Trash2 className="w-4 h-4" />
+                         </Button>
+                       </div>
                      </div>
                    );
                  })}
@@ -520,6 +557,60 @@ function ModelEditor({ modelId }: { modelId: number }) {
           </div>
         </Tabs>
       </div>
+
+      {/* Edit Tariff Dialog */}
+      <Dialog open={!!editingTariff} onOpenChange={(open) => { if (!open) setEditingTariff(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Alterar Tarifa</DialogTitle>
+            <DialogDescription>Edite os campos da tarifa e clique em Salvar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nome da Tarifa</Label>
+              <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Ex: TED" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Tipo de Cálculo</Label>
+                <Select value={editType} onValueChange={(val: any) => setEditType(val)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FIXED">Fixo (R$)</SelectItem>
+                    <SelectItem value="PERCENT">Percentual (%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Valor</Label>
+                <Input value={editValue} onChange={e => setEditValue(e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo de Cobrança</Label>
+              <Select value={editChargeType} onValueChange={(val: any) => setEditChargeType(val)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UNICA">Única</SelectItem>
+                  <SelectItem value="POR_CLIENTE">Por Cliente</SelectItem>
+                  <SelectItem value="POR_TITULO">Por Título</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTariff(null)}>Cancelar</Button>
+            <Button onClick={handleSaveTariff} disabled={updateTariff.isPending}>
+              <Save className="w-4 h-4 mr-2" />
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

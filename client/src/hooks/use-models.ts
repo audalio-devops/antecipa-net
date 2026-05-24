@@ -92,6 +92,26 @@ export function useCreateTariff() {
   });
 }
 
+export function useUpdateTariff() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, modelId, data }: { id: number; modelId: number; data: Partial<Omit<InsertTariff, "modelConfigId">> }) => {
+      const url = buildUrl(api.tariffs.update.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update tariff");
+      const json = await res.json();
+      return api.tariffs.update.responses[200].parse(json);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.modelConfigs.get.path, variables.modelId] });
+    },
+  });
+}
+
 export function useDeleteTariff() {
   const queryClient = useQueryClient();
   return useMutation({

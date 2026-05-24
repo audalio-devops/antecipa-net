@@ -23,6 +23,7 @@ export interface IStorage {
   // Tariffs
   getTariffsByModelId(modelId: number): Promise<Tariff[]>;
   createTariff(tariff: InsertTariff): Promise<Tariff>;
+  updateTariff(id: number, tariff: Partial<InsertTariff>): Promise<Tariff>;
   deleteTariff(id: number): Promise<void>;
 
   // Simulations
@@ -100,6 +101,11 @@ export class DatabaseStorage implements IStorage {
   async createTariff(tariff: InsertTariff): Promise<Tariff> {
     const [newTariff] = await db.insert(tariffs).values(tariff).returning();
     return newTariff;
+  }
+
+  async updateTariff(id: number, tariff: Partial<InsertTariff>): Promise<Tariff> {
+    const [updated] = await db.update(tariffs).set(tariff).where(eq(tariffs.id, id)).returning();
+    return updated;
   }
 
   async deleteTariff(id: number): Promise<void> {
