@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, Save, Pencil, AlertCircle, Settings as SettingsIcon, CircleCheck, CircleX } from "lucide-react";
+import { Plus, Trash2, Save, Pencil, Percent, AlertCircle, Settings as SettingsIcon, CircleCheck, CircleX } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
