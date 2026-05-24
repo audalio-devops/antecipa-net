@@ -12,7 +12,7 @@ import { Plus, Trash2, Save, Percent, AlertCircle, Settings as SettingsIcon, Cir
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertModelConfigSchema, insertTariffSchema, MODEL_TYPES, TAX_REGIMES, type InsertModelConfig } from "@shared/schema";
+import { insertModelConfigSchema, insertTariffSchema, MODEL_TYPES, TAX_REGIMES, TARIFF_CHARGE_TYPES, type InsertModelConfig } from "@shared/schema";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -232,6 +232,7 @@ function ModelEditor({ modelId }: { modelId: number }) {
   const [newTariffName, setNewTariffName] = useState("");
   const [newTariffValue, setNewTariffValue] = useState("");
   const [newTariffType, setNewTariffType] = useState<"FIXED" | "PERCENT">("FIXED");
+  const [newTariffChargeType, setNewTariffChargeType] = useState<"UNICA" | "POR_CLIENTE" | "POR_TITULO">("UNICA");
 
   const handleAddTariff = () => {
     if (!newTariffName || !newTariffValue) return;
@@ -241,12 +242,14 @@ function ModelEditor({ modelId }: { modelId: number }) {
         name: newTariffName,
         value: newTariffValue,
         type: newTariffType,
+        chargeType: newTariffChargeType,
         isActive: true
       }
     }, {
       onSuccess: () => {
         setNewTariffName("");
         setNewTariffValue("");
+        setNewTariffChargeType("UNICA");
         toast({ title: "Tarifa adicionada!" });
       }
     });
@@ -344,51 +347,85 @@ function ModelEditor({ modelId }: { modelId: number }) {
             </TabsContent>
 
             <TabsContent value="tariffs" className="mt-0 space-y-6">
-               <div className="flex gap-4 items-end mb-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
-                  <div className="flex-1 space-y-2">
-                    <Label>Nome da Tarifa</Label>
-                    <Input placeholder="Ex: TED" value={newTariffName} onChange={e => setNewTariffName(e.target.value)} />
-                  </div>
-                  <div className="w-32 space-y-2">
-                    <Label>Tipo</Label>
-                    <Select value={newTariffType} onValueChange={(val: any) => setNewTariffType(val)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="FIXED">Fixo (R$)</SelectItem>
-                        <SelectItem value="PERCENT">%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="w-32 space-y-2">
-                    <Label>Valor</Label>
-                    <Input placeholder="0.00" value={newTariffValue} onChange={e => setNewTariffValue(e.target.value)} />
-                  </div>
-                  <Button onClick={handleAddTariff} disabled={createTariff.isPending}>
-                    <Plus className="w-4 h-4" />
-                  </Button>
+               <div className="grid grid-cols-1 gap-3 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                 <div className="grid grid-cols-2 gap-3">
+                   <div className="space-y-2">
+                     <Label>Nome da Tarifa</Label>
+                     <Input placeholder="Ex: TED" value={newTariffName} onChange={e => setNewTariffName(e.target.value)} />
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Tipo de Cobrança</Label>
+                     <Select value={newTariffChargeType} onValueChange={(val: any) => setNewTariffChargeType(val)}>
+                       <SelectTrigger>
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="UNICA">Única</SelectItem>
+                         <SelectItem value="POR_CLIENTE">Por Cliente</SelectItem>
+                         <SelectItem value="POR_TITULO">Por Título</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                 </div>
+                 <div className="grid grid-cols-3 gap-3 items-end">
+                   <div className="space-y-2">
+                     <Label>Tipo de Cálculo</Label>
+                     <Select value={newTariffType} onValueChange={(val: any) => setNewTariffType(val)}>
+                       <SelectTrigger>
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="FIXED">Fixo (R$)</SelectItem>
+                         <SelectItem value="PERCENT">Percentual (%)</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Valor</Label>
+                     <Input placeholder="0.00" value={newTariffValue} onChange={e => setNewTariffValue(e.target.value)} />
+                   </div>
+                   <Button onClick={handleAddTariff} disabled={createTariff.isPending} className="w-full">
+                     <Plus className="w-4 h-4 mr-2" />
+                     Adicionar
+                   </Button>
+                 </div>
                </div>
 
                <div className="space-y-2">
-                 {modelDetails.tariffs?.map(tariff => (
-                   <div key={tariff.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-shadow">
-                     <div className="flex items-center gap-3">
-                       <div className="p-2 bg-slate-100 rounded-full">
-                         <AlertCircle className="w-4 h-4 text-slate-500" />
+                 {modelDetails.tariffs?.map(tariff => {
+                   const chargeLabels: Record<string, string> = {
+                     UNICA: "Única",
+                     POR_CLIENTE: "Por Cliente",
+                     POR_TITULO: "Por Título",
+                   };
+                   const chargeColors: Record<string, string> = {
+                     UNICA: "bg-purple-50 text-purple-700 border-purple-200",
+                     POR_CLIENTE: "bg-blue-50 text-blue-700 border-blue-200",
+                     POR_TITULO: "bg-amber-50 text-amber-700 border-amber-200",
+                   };
+                   return (
+                     <div key={tariff.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-shadow">
+                       <div className="flex items-center gap-3">
+                         <div className="p-2 bg-slate-100 rounded-full">
+                           <AlertCircle className="w-4 h-4 text-slate-500" />
+                         </div>
+                         <div>
+                           <p className="font-medium text-slate-900">{tariff.name}</p>
+                           <p className="text-xs text-slate-500">
+                             {tariff.type === 'FIXED' ? `R$ ${Number(tariff.value).toFixed(2)}` : `${tariff.value}%`}
+                             {" · "}
+                             <span className={`inline-block px-1.5 py-0.5 rounded border text-xs font-medium ${chargeColors[tariff.chargeType ?? "UNICA"]}`}>
+                               {chargeLabels[tariff.chargeType ?? "UNICA"] ?? "Única"}
+                             </span>
+                           </p>
+                         </div>
                        </div>
-                       <div>
-                         <p className="font-medium text-slate-900">{tariff.name}</p>
-                         <p className="text-xs text-slate-500">
-                           {tariff.type === 'FIXED' ? `R$ ${tariff.value}` : `${tariff.value}%`}
-                         </p>
-                       </div>
+                       <Button variant="ghost" size="icon" onClick={() => deleteTariff.mutate({ id: tariff.id, modelId })} className="text-red-400 hover:text-red-500 hover:bg-red-50">
+                         <Trash2 className="w-4 h-4" />
+                       </Button>
                      </div>
-                     <Button variant="ghost" size="icon" onClick={() => deleteTariff.mutate({ id: tariff.id, modelId })} className="text-red-400 hover:text-red-500 hover:bg-red-50">
-                       <Trash2 className="w-4 h-4" />
-                     </Button>
-                   </div>
-                 ))}
+                   );
+                 })}
                  {(!modelDetails.tariffs || modelDetails.tariffs.length === 0) && (
                    <div className="text-center py-8 text-slate-400">Nenhuma tarifa cadastrada.</div>
                  )}

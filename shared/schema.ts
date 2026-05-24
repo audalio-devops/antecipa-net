@@ -8,6 +8,8 @@ export const MODEL_TYPES = ["FACTORING", "SECURITIZADORA", "FIDC"] as const;
 export const TAX_REGIMES = ["SIMPLES", "LUCRO_PRESUMIDO", "LUCRO_REAL"] as const;
 export const CALCULATION_TYPES = ["SIMPLE", "COMPOUND"] as const;
 export const USER_ROLES = ["ADMIN", "OPERATOR"] as const;
+export const TARIFF_CALC_TYPES = ["FIXED", "PERCENT"] as const;
+export const TARIFF_CHARGE_TYPES = ["UNICA", "POR_CLIENTE", "POR_TITULO"] as const;
 
 // === TABLES ===
 
@@ -65,7 +67,8 @@ export const tariffs = pgTable("tariffs", {
   id: serial("id").primaryKey(),
   modelConfigId: integer("model_config_id").references(() => modelConfigs.id).notNull(),
   name: text("name").notNull(), // e.g., "Tarifa de Boleto", "TED"
-  type: text("type").notNull(), // FIXED, PERCENT
+  type: text("type").notNull(), // FIXED, PERCENT  — Tipo de Cálculo
+  chargeType: text("charge_type").notNull().default("UNICA"), // UNICA, POR_CLIENTE, POR_TITULO — Tipo de Cobrança
   value: numeric("value").notNull(),
   minValue: numeric("min_value"),
   maxValue: numeric("max_value"),
